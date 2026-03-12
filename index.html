@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>منظم دخول جروبات واتساب</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-blur bg-blur-1"></div>
+  <div class="bg-blur bg-blur-2"></div>
+
+  <main class="app-shell">
+    <section class="card">
+      <div class="topbar">
+        <div>
+          <h1>منظم دخول جروبات واتساب</h1>
+          <p class="subtitle">
+            ارفع ملف Excel يحتوي على الأعمدة:
+            <span class="chip">name</span>
+            <span class="chip">link</span>
+          </p>
+        </div>
+
+        <button id="themeToggle" class="ghost-btn" type="button">تبديل الوضع</button>
+      </div>
+
+      <div id="uploadSection" class="upload-section">
+        <label for="excelFile" class="upload-box">
+          <input id="excelFile" type="file" accept=".xlsx,.xls" />
+          <span class="upload-title">اختر ملف Excel</span>
+          <span class="upload-hint">Excel فقط — xlsx / xls</span>
+        </label>
+
+        <div class="upload-actions">
+          <button id="loadSampleBtn" class="secondary-btn" type="button">تحميل مثال تجريبي</button>
+          <button id="clearAllBtn" class="danger-btn" type="button">مسح كل البيانات المحفوظة</button>
+        </div>
+
+        <div id="fileStatus" class="status-box muted">
+          لم يتم تحميل أي ملف بعد.
+        </div>
+      </div>
+
+      <div id="mainSection" class="hidden">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">الحالي</span>
+            <strong id="currentNumber">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">الإجمالي</span>
+            <strong id="totalNumber">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">المتبقي</span>
+            <strong id="remainingNumber">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">المكتمل</span>
+            <strong id="doneNumber">0</strong>
+          </div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-head">
+            <span>التقدم</span>
+            <span id="progressText">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="group-card">
+          <div class="group-avatar" id="groupAvatar">W</div>
+
+          <div class="group-content">
+            <div class="group-badge" id="groupStep">جروب 0 من 0</div>
+            <h2 id="groupName">—</h2>
+            <p id="groupLink" class="group-link">—</p>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <button id="openBtn" class="primary-btn" type="button">فتح الجروب</button>
+          <button id="doneBtn" class="success-btn" type="button">تم الدخول</button>
+          <button id="retryBtn" class="warning-btn" type="button">لم أدخل</button>
+          <button id="skipBtn" class="secondary-btn" type="button">تخطي مؤقت</button>
+          <button id="backBtn" class="ghost-btn" type="button">رجوع خطوة</button>
+          <button id="restartBtn" class="danger-btn" type="button">إعادة البدء</button>
+        </div>
+
+        <div id="messageBox" class="message-box">
+          بعد الضغط على <b>فتح الجروب</b> ارجع للصفحة ثم اختر:
+          <b>تم الدخول</b> أو <b>لم أدخل</b>.
+        </div>
+
+        <div id="completedSection" class="completed-box hidden">
+          <h3>تم الانتهاء من كل الجروبات 🎉</h3>
+          <p>كل العناصر تم تعليمها كمكتملة.</p>
+          <button id="restartAfterDoneBtn" class="primary-btn" type="button">إعادة البدء من أول جروب</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
