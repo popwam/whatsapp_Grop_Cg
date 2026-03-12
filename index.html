@@ -16,33 +16,24 @@
         <div>
           <h1>منظم دخول جروبات واتساب</h1>
           <p class="subtitle">
-            ارفع ملف Excel يحتوي على الأعمدة:
-            <span class="chip">name</span>
-            <span class="chip">link</span>
+            يتم تحميل الملف تلقائيًا من:
+            <span class="chip">whatsapp.xlsx</span>
           </p>
         </div>
 
         <button id="themeToggle" class="ghost-btn" type="button">تبديل الوضع</button>
       </div>
 
-      <div id="uploadSection" class="upload-section">
-        <label for="excelFile" class="upload-box">
-          <input id="excelFile" type="file" accept=".xlsx,.xls" />
-          <span class="upload-title">اختر ملف Excel</span>
-          <span class="upload-hint">Excel فقط — xlsx / xls</span>
-        </label>
-
-        <div class="upload-actions">
-          <button id="loadSampleBtn" class="secondary-btn" type="button">تحميل مثال تجريبي</button>
-          <button id="clearAllBtn" class="danger-btn" type="button">مسح كل البيانات المحفوظة</button>
-        </div>
-
-        <div id="fileStatus" class="status-box muted">
-          لم يتم تحميل أي ملف بعد.
-        </div>
+      <div id="fileStatus" class="status-box muted">
+        جاري تحميل ملف الجروبات...
       </div>
 
-      <div id="mainSection" class="hidden">
+      <div class="upload-actions" style="margin-top:16px;">
+        <button id="reloadFileBtn" class="secondary-btn" type="button">إعادة تحميل الملف</button>
+        <button id="clearAllBtn" class="danger-btn" type="button">مسح التقدم المحفوظ</button>
+      </div>
+
+      <div id="mainSection" class="hidden" style="margin-top:18px;">
         <div class="stats-grid">
           <div class="stat-box">
             <span class="stat-label">الحالي</span>
@@ -83,17 +74,18 @@
         </div>
 
         <div class="action-grid">
-          <button id="openBtn" class="primary-btn" type="button">فتح الجروب</button>
-          <button id="doneBtn" class="success-btn" type="button">تم الدخول</button>
-          <button id="retryBtn" class="warning-btn" type="button">لم أدخل</button>
-          <button id="skipBtn" class="secondary-btn" type="button">تخطي مؤقت</button>
+          <button id="openBtn" class="primary-btn" type="button">الانضمام للمجموعة</button>
+
+          <button id="doneBtn" class="success-btn hidden" type="button">تم الدخول</button>
+          <button id="retryBtn" class="warning-btn hidden" type="button">لم أدخل</button>
+          <button id="skipBtn" class="secondary-btn hidden" type="button">تخطي مؤقت</button>
+
           <button id="backBtn" class="ghost-btn" type="button">رجوع خطوة</button>
           <button id="restartBtn" class="danger-btn" type="button">إعادة البدء</button>
         </div>
 
         <div id="messageBox" class="message-box">
-          بعد الضغط على <b>فتح الجروب</b> ارجع للصفحة ثم اختر:
-          <b>تم الدخول</b> أو <b>لم أدخل</b>.
+          اضغط <b>الانضمام للمجموعة</b> أولًا، وبعد الرجوع ستظهر لك الخيارات التالية.
         </div>
 
         <div id="completedSection" class="completed-box hidden">

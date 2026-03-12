@@ -1,17 +1,18 @@
 const STORAGE_KEYS = {
-  groups: "wa_groups_data_v1",
-  currentIndex: "wa_groups_current_index_v1",
-  doneMap: "wa_groups_done_map_v1",
-  theme: "wa_groups_theme_v1",
+  groups: "wa_groups_data_v2",
+  currentIndex: "wa_groups_current_index_v2",
+  doneMap: "wa_groups_done_map_v2",
+  skippedMap: "wa_groups_skipped_map_v2",
+  theme: "wa_groups_theme_v2",
 };
 
 let groups = [];
 let currentIndex = 0;
 let doneMap = {};
+let skippedMap = {};
+let hasOpenedCurrent = false;
 
-const excelFile = document.getElementById("excelFile");
 const fileStatus = document.getElementById("fileStatus");
-const uploadSection = document.getElementById("uploadSection");
 const mainSection = document.getElementById("mainSection");
 const completedSection = document.getElementById("completedSection");
 
@@ -35,7 +36,7 @@ const backBtn = document.getElementById("backBtn");
 const restartBtn = document.getElementById("restartBtn");
 const restartAfterDoneBtn = document.getElementById("restartAfterDoneBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
-const loadSampleBtn = document.getElementById("loadSampleBtn");
+const reloadFileBtn = document.getElementById("reloadFileBtn");
 const themeToggle = document.getElementById("themeToggle");
 const messageBox = document.getElementById("messageBox");
 
@@ -43,12 +44,14 @@ function saveState() {
   localStorage.setItem(STORAGE_KEYS.groups, JSON.stringify(groups));
   localStorage.setItem(STORAGE_KEYS.currentIndex, String(currentIndex));
   localStorage.setItem(STORAGE_KEYS.doneMap, JSON.stringify(doneMap));
+  localStorage.setItem(STORAGE_KEYS.skippedMap, JSON.stringify(skippedMap));
 }
 
 function loadState() {
   const savedGroups = localStorage.getItem(STORAGE_KEYS.groups);
   const savedIndex = localStorage.getItem(STORAGE_KEYS.currentIndex);
   const savedDoneMap = localStorage.getItem(STORAGE_KEYS.doneMap);
+  const savedSkippedMap = localStorage.getItem(STORAGE_KEYS.skippedMap);
 
   if (savedGroups) {
     try {
@@ -66,20 +69,42 @@ function loadState() {
     }
   }
 
+  if (savedSkippedMap) {
+    try {
+      skippedMap = JSON.parse(savedSkippedMap) || {};
+    } catch {
+      skippedMap = {};
+    }
+  }
+
   currentIndex = Number(savedIndex || 0);
 
   if (!Array.isArray(groups)) groups = [];
   if (typeof doneMap !== "object" || doneMap === null) doneMap = {};
+  if (typeof skippedMap !== "object" || skippedMap === null) skippedMap = {};
   if (!Number.isFinite(currentIndex) || currentIndex < 0) currentIndex = 0;
 }
 
-function clearState() {
+function clearStateOnly() {
+  localStorage.removeItem(STORAGE_KEYS.currentIndex);
+  localStorage.removeItem(STORAGE_KEYS.doneMap);
+  localStorage.removeItem(STORAGE_KEYS.skippedMap);
+  doneMap = {};
+  skippedMap = {};
+  currentIndex = 0;
+  hasOpenedCurrent = false;
+}
+
+function clearAllState() {
   localStorage.removeItem(STORAGE_KEYS.groups);
   localStorage.removeItem(STORAGE_KEYS.currentIndex);
   localStorage.removeItem(STORAGE_KEYS.doneMap);
+  localStorage.removeItem(STORAGE_KEYS.skippedMap);
   groups = [];
   doneMap = {};
+  skippedMap = {};
   currentIndex = 0;
+  hasOpenedCurrent = false;
 }
 
 function saveTheme(mode) {
@@ -137,44 +162,73 @@ function getProgressPercent() {
   return Math.round((getDoneCount() / groups.length) * 100);
 }
 
-function getSafeCurrentIndex() {
-  if (!groups.length) return 0;
-
-  if (currentIndex >= groups.length) {
-    const firstNotDone = groups.findIndex((_, index) => !doneMap[index]);
-    return firstNotDone === -1 ? groups.length - 1 : firstNotDone;
+function getUnfinishedNormalIndexes() {
+  const arr = [];
+  for (let i = 0; i < groups.length; i++) {
+    if (!doneMap[i] && !skippedMap[i]) arr.push(i);
   }
-
-  return currentIndex;
+  return arr;
 }
 
-function moveToNextUndone(startFrom = currentIndex + 1) {
-  for (let i = startFrom; i < groups.length; i++) {
-    if (!doneMap[i]) {
-      currentIndex = i;
-      saveState();
-      render();
-      return;
+function getUnfinishedSkippedIndexes() {
+  const arr = [];
+  for (let i = 0; i < groups.length; i++) {
+    if (!doneMap[i] && skippedMap[i]) arr.push(i);
+  }
+  return arr;
+}
+
+function isFinalDeferredStage() {
+  return getUnfinishedNormalIndexes().length === 0 && getUnfinishedSkippedIndexes().length > 0;
+}
+
+function getNextAvailableIndex(preferredStart = 0) {
+  const normal = getUnfinishedNormalIndexes();
+  const skipped = getUnfinishedSkippedIndexes();
+
+  const normalFromStart = normal.find((i) => i >= preferredStart);
+  if (normalFromStart !== undefined) return normalFromStart;
+  if (normal.length) return normal[0];
+
+  const skippedFromStart = skipped.find((i) => i >= preferredStart);
+  if (skippedFromStart !== undefined) return skippedFromStart;
+  if (skipped.length) return skipped[0];
+
+  return -1;
+}
+
+function syncCurrentIndex() {
+  if (!groups.length) {
+    currentIndex = 0;
+    return;
+  }
+
+  const done = getDoneCount();
+  if (done >= groups.length) {
+    currentIndex = groups.length;
+    return;
+  }
+
+  if (doneMap[currentIndex]) {
+    currentIndex = getNextAvailableIndex(0);
+    return;
+  }
+
+  if (!doneMap[currentIndex]) {
+    const available = [...getUnfinishedNormalIndexes(), ...getUnfinishedSkippedIndexes()];
+    if (!available.includes(currentIndex)) {
+      currentIndex = getNextAvailableIndex(0);
     }
   }
-
-  const firstNotDone = groups.findIndex((_, index) => !doneMap[index]);
-
-  if (firstNotDone !== -1) {
-    currentIndex = firstNotDone;
-  } else {
-    currentIndex = groups.length;
-  }
-
-  saveState();
-  render();
 }
 
 function renderStats() {
   const done = getDoneCount();
   const total = groups.length;
   const remaining = getRemainingCount();
-  const currentDisplay = total === 0 ? 0 : Math.min(getSafeCurrentIndex() + 1, total);
+  const currentDisplay = total === 0
+    ? 0
+    : Math.min((currentIndex >= groups.length ? groups.length : currentIndex + 1), total);
 
   currentNumber.textContent = String(currentDisplay);
   totalNumber.textContent = String(total);
@@ -186,59 +240,89 @@ function renderStats() {
   progressFill.style.width = `${percent}%`;
 }
 
+function updateActionButtons() {
+  const finished = getDoneCount() >= groups.length || !groups.length;
+
+  openBtn.disabled = finished;
+  backBtn.disabled = !groups.length;
+  restartBtn.disabled = !groups.length;
+
+  if (finished) {
+    doneBtn.classList.add("hidden");
+    retryBtn.classList.add("hidden");
+    skipBtn.classList.add("hidden");
+    return;
+  }
+
+  if (!hasOpenedCurrent) {
+    doneBtn.classList.add("hidden");
+    retryBtn.classList.add("hidden");
+    skipBtn.classList.add("hidden");
+    return;
+  }
+
+  doneBtn.classList.remove("hidden");
+  retryBtn.classList.remove("hidden");
+
+  if (isFinalDeferredStage() || skippedMap[currentIndex]) {
+    skipBtn.classList.add("hidden");
+  } else {
+    skipBtn.classList.remove("hidden");
+  }
+}
+
 function renderGroup() {
   if (!groups.length) {
     mainSection.classList.add("hidden");
     completedSection.classList.add("hidden");
+    updateActionButtons();
     return;
   }
 
+  mainSection.classList.remove("hidden");
+  syncCurrentIndex();
+
   if (getDoneCount() >= groups.length) {
-    mainSection.classList.remove("hidden");
     completedSection.classList.remove("hidden");
 
     groupStep.textContent = `تم إنهاء ${groups.length} من ${groups.length}`;
     groupName.textContent = "انتهيت من كل الجروبات";
-    groupLink.textContent = "يمكنك إعادة البدء أو تحميل ملف جديد.";
+    groupLink.textContent = "يمكنك إعادة البدء أو إعادة تحميل الملف.";
     groupAvatar.textContent = "✓";
 
-    openBtn.disabled = true;
-    doneBtn.disabled = true;
-    retryBtn.disabled = true;
-    skipBtn.disabled = true;
-
+    updateActionButtons();
     return;
   }
 
   completedSection.classList.add("hidden");
 
-  currentIndex = getSafeCurrentIndex();
   const item = groups[currentIndex];
+  const deferred = skippedMap[currentIndex] === true;
+  const finalStage = isFinalDeferredStage();
 
-  groupStep.textContent = `جروب ${currentIndex + 1} من ${groups.length}`;
+  if (finalStage && deferred) {
+    groupStep.textContent = `جروب مؤجل ${currentIndex + 1} من ${groups.length}`;
+  } else {
+    groupStep.textContent = `جروب ${currentIndex + 1} من ${groups.length}`;
+  }
+
   groupName.textContent = item.name;
   groupLink.textContent = item.link;
   groupAvatar.textContent = (item.name || "W").trim().charAt(0).toUpperCase();
 
-  openBtn.disabled = false;
-  doneBtn.disabled = false;
-  retryBtn.disabled = false;
-  skipBtn.disabled = false;
+  updateActionButtons();
 }
 
 function render() {
-  const hasData = groups.length > 0;
-  mainSection.classList.toggle("hidden", !hasData);
-
   renderStats();
   renderGroup();
 
-  if (hasData) {
+  if (groups.length) {
     fileStatus.className = "status-box";
-    fileStatus.innerHTML = `تم تحميل <b>${groups.length}</b> جروب. يتم حفظ التقدم تلقائيًا على هذا الجهاز.`;
+    fileStatus.innerHTML = `تم تحميل <b>${groups.length}</b> جروب من الملف <b>whatsapp.xlsx</b>. يتم حفظ التقدم تلقائيًا على هذا الجهاز.`;
   } else {
     fileStatus.className = "status-box muted";
-    fileStatus.textContent = "لم يتم تحميل أي ملف بعد.";
+    fileStatus.textContent = "لم يتم تحميل الملف بعد.";
   }
 }
 
@@ -247,14 +331,29 @@ function openCurrentGroup() {
 
   const item = groups[currentIndex];
   window.open(item.link, "_blank", "noopener,noreferrer");
-  messageBox.innerHTML = `تم فتح الجروب الحالي: <b>${escapeHtml(item.name)}</b><br>بعد الرجوع اختر <b>تم الدخول</b> أو <b>لم أدخل</b>.`;
+  hasOpenedCurrent = true;
+  updateActionButtons();
+
+  const deferred = skippedMap[currentIndex] === true;
+  messageBox.innerHTML = deferred
+    ? `أنت الآن في جروب مؤجل: <b>${escapeHtml(item.name)}</b><br>بعد الرجوع اختر <b>تم الدخول</b> أو <b>لم أدخل</b>.`
+    : `تم فتح الجروب الحالي: <b>${escapeHtml(item.name)}</b><br>بعد الرجوع اختر <b>تم الدخول</b> أو <b>لم أدخل</b> أو <b>تخطي مؤقت</b>.`;
+}
+
+function moveToNext() {
+  const next = getNextAvailableIndex(currentIndex + 1);
+  currentIndex = next === -1 ? groups.length : next;
+  hasOpenedCurrent = false;
+  saveState();
+  render();
 }
 
 function markCurrentDone() {
   if (!groups.length || currentIndex >= groups.length) return;
+
   doneMap[currentIndex] = true;
-  saveState();
-  moveToNextUndone(currentIndex + 1);
+  delete skippedMap[currentIndex];
+  moveToNext();
 }
 
 function retryCurrent() {
@@ -262,24 +361,39 @@ function retryCurrent() {
   openCurrentGroup();
 }
 
-function skipCurrent() {
+function skipCurrentTemporarily() {
   if (!groups.length || currentIndex >= groups.length) return;
-  moveToNextUndone(currentIndex + 1);
+
+  if (isFinalDeferredStage() || skippedMap[currentIndex]) {
+    messageBox.innerHTML = `هذا الجروب مؤجل بالفعل ووصلت له في النهاية، لذلك لا يمكن تخطيه مرة أخرى.`;
+    return;
+  }
+
+  skippedMap[currentIndex] = true;
+  moveToNext();
+  messageBox.innerHTML = `تم تأجيل هذا الجروب مؤقتًا إلى نهاية الدور.`;
 }
 
 function goBack() {
   if (!groups.length) return;
 
-  const target = Math.max(currentIndex - 1, 0);
-  currentIndex = target;
-
-  if (doneMap[currentIndex]) {
-    doneMap[currentIndex] = false;
+  for (let i = Math.min(currentIndex - 1, groups.length - 1); i >= 0; i--) {
+    if (doneMap[i]) {
+      doneMap[i] = false;
+      currentIndex = i;
+      hasOpenedCurrent = false;
+      saveState();
+      render();
+      messageBox.innerHTML = `تم الرجوع خطوة للخلف وإلغاء تعليم هذا الجروب كمكتمل.`;
+      return;
+    }
   }
 
+  currentIndex = 0;
+  hasOpenedCurrent = false;
   saveState();
   render();
-  messageBox.innerHTML = `تم الرجوع خطوة للخلف. يمكنك الآن إعادة المحاولة أو التعليم كمكتمل.`;
+  messageBox.innerHTML = `أنت الآن عند أول جروب.`;
 }
 
 function restartAll() {
@@ -289,84 +403,93 @@ function restartAll() {
   if (!confirmed) return;
 
   doneMap = {};
+  skippedMap = {};
   currentIndex = 0;
+  hasOpenedCurrent = false;
   saveState();
   render();
   messageBox.innerHTML = `تمت إعادة البدء من أول جروب.`;
 }
 
-function parseExcelFile(file) {
-  const reader = new FileReader();
+async function loadExcelFromRoot({ resetProgress = false } = {}) {
+  try {
+    fileStatus.className = "status-box muted";
+    fileStatus.textContent = "جاري تحميل ملف whatsapp.xlsx ...";
 
-  reader.onload = function(e) {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
+    const response = await fetch("./whatsapp.xlsx", { cache: "no-store" });
 
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-      const parsed = normalizeRows(rows);
-
-      if (!parsed.length) {
-        alert("لم أجد بيانات صالحة. تأكد أن الملف يحتوي على الأعمدة name و link.");
-        return;
-      }
-
-      groups = parsed;
-      doneMap = {};
-      currentIndex = 0;
-      saveState();
-      render();
-    } catch (error) {
-      console.error(error);
-      alert("حدث خطأ أثناء قراءة ملف Excel.");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-  };
 
-  reader.readAsArrayBuffer(file);
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+    const parsed = normalizeRows(rows);
+
+    if (!parsed.length) {
+      throw new Error("EMPTY_OR_INVALID_DATA");
+    }
+
+    const oldSerialized = JSON.stringify(groups);
+    const newSerialized = JSON.stringify(parsed);
+
+    groups = parsed;
+
+    if (resetProgress || oldSerialized !== newSerialized) {
+      doneMap = {};
+      skippedMap = {};
+      currentIndex = 0;
+      hasOpenedCurrent = false;
+    } else {
+      syncCurrentIndex();
+      hasOpenedCurrent = false;
+    }
+
+    saveState();
+    render();
+  } catch (error) {
+    console.error(error);
+    mainSection.classList.add("hidden");
+    completedSection.classList.add("hidden");
+    fileStatus.className = "status-box muted";
+    fileStatus.innerHTML = `
+      تعذر تحميل الملف <b>whatsapp.xlsx</b>.<br>
+      تأكد أنه موجود في جذر المشروع وأنك تشغل الموقع عبر <b>Local Server</b>.
+    `;
+  }
 }
-
-function loadSampleData() {
-  groups = [
-    { name: "جروب المبيعات", link: "https://chat.whatsapp.com/example-1" },
-    { name: "جروب العملاء", link: "https://chat.whatsapp.com/example-2" },
-    { name: "جروب الدعم", link: "https://chat.whatsapp.com/example-3" },
-  ];
-  doneMap = {};
-  currentIndex = 0;
-  saveState();
-  render();
-}
-
-excelFile.addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  parseExcelFile(file);
-});
 
 openBtn.addEventListener("click", openCurrentGroup);
 doneBtn.addEventListener("click", markCurrentDone);
 retryBtn.addEventListener("click", retryCurrent);
-skipBtn.addEventListener("click", skipCurrent);
+skipBtn.addEventListener("click", skipCurrentTemporarily);
 backBtn.addEventListener("click", goBack);
 restartBtn.addEventListener("click", restartAll);
 restartAfterDoneBtn.addEventListener("click", restartAll);
 
-clearAllBtn.addEventListener("click", () => {
-  const confirmed = window.confirm("هل تريد مسح كل البيانات والتقدم المحفوظ؟");
-  if (!confirmed) return;
-
-  clearState();
-  excelFile.value = "";
-  render();
-  messageBox.innerHTML = `تم مسح كل البيانات المحفوظة.`;
+reloadFileBtn.addEventListener("click", async () => {
+  await loadExcelFromRoot({ resetProgress: false });
+  messageBox.innerHTML = `تمت إعادة تحميل الملف من الجذر.`;
 });
 
-loadSampleBtn.addEventListener("click", loadSampleData);
+clearAllBtn.addEventListener("click", () => {
+  const confirmed = window.confirm("هل تريد مسح كل التقدم المحفوظ؟");
+  if (!confirmed) return;
+
+  clearStateOnly();
+  saveState();
+  render();
+  messageBox.innerHTML = `تم مسح التقدم المحفوظ والبدء من أول جروب.`;
+});
+
 themeToggle.addEventListener("click", toggleTheme);
 
 loadTheme();
 loadState();
 render();
+loadExcelFromRoot({ resetProgress: false });
